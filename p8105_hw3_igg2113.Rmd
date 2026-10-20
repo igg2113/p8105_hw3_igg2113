@@ -1,0 +1,119 @@
+---
+title: "Homework 3"
+author: "Isabella Gerlitz"
+date: '`r format(Sys.time(), "%Y-%m-%d")`'
+output: github_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE, 
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 6,
+  out.width = "90%"
+)
+```
+
+```{r load_libraries}
+library(tidyverse)
+library(p8105.datasets)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+```
+
+## Problem 1
+
+## Problem 2
+```{r}
+covar_df = 
+  read_csv("data/nhanes_covar.csv", skip = 4) |> 
+  janitor::clean_names() |> 
+  filter(age >= 21) |> 
+  drop_na() |> 
+  mutate(
+    sex = factor(sex, levels = c(1, 2), labels = c("male", "female")),
+    education = factor(
+      education, 
+      levels = c(1, 2, 3), 
+      labels = c("less than high school", "high school equivalent", "more than high school"),
+      ordered = TRUE
+    )
+  )
+
+accel_df = 
+  read_csv("data/nhanes_accel.csv") |> 
+  janitor::clean_names()
+
+nhanes_df = inner_join(covar_df, accel_df, by = "seqn")
+
+dim(nhanes_df)
+```
+Using NHANES demographic and accelerometer data, I kept participants that were 21+ with no missing demographic data, and then converted sex and education to labeled factors. I then merged them by ID. The resulting dataset contains 228 participants and 1445 variables (five demographic variables and 1440 activity measures).
+
+```{r}
+nhanes_df |> 
+  count(education, sex) |> 
+  pivot_wider(names_from = sex, values_from = n) |> 
+  knitr::kable(
+    caption = "Number of men and women in each education category",
+    col.names = c("Education", "Male", "Female")
+  )
+```
+More than high school contained the most participants. Male and Female are similar in the less than high school and more than high school groups. There are more men in the high school equivalent group.
+```{r}
+nhanes_df |> 
+  ggplot(aes(x = sex, y = age, fill = sex)) + 
+  geom_boxplot() + 
+  facet_grid(. ~ education) + 
+  labs(
+    title = "Age distribution by sex and education level",
+    x = "Sex",
+    y = "Age (years)",
+    fill = "Sex"
+  )
+```
+High school equivalent females are older than the males. In more than high school, both males and females are younger. In less than high school, the age distribution for males and females look similar.
+
+```{r}
+total_df = 
+  nhanes_df |> 
+  mutate(total_activity = rowSums(pick(starts_with("min")))) |> 
+  select(seqn, sex, age, education, total_activity)
+
+total_df |> 
+  ggplot(aes(x = age, y = total_activity, color = sex)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(se = FALSE) + 
+  facet_grid(. ~ education) + 
+  labs(
+    title = "Total daily activity by age, sex and education level",
+    x = "Age (years)",
+    y = "Total daily activity (MIMS)",
+    color = "Sex"
+  )
+```
+Across age groups, total activity declines with age. The trend line for men and women in the less than high school group are similar. In High school equivalent women are more active than men. 
+
+```{r}
+nhanes_df |> 
+  pivot_longer(
+    starts_with("min"),
+    names_to = "minute",
+    names_prefix = "min",
+    values_to = "mims"
+  ) |> 
+  mutate(minute = as.numeric(minute)) |> 
+  ggplot(aes(x = minute, y = mims, color = sex)) + 
+  geom_line(aes(group = seqn), alpha = 0.1) + 
+  geom_smooth(se = FALSE) + 
+  facet_grid(. ~ education) + 
+  labs(
+    title = "24-hour activity time course by sex and education level",
+    x = "Minute of the day (1 = midnight)",
+    y = "MIMS value",
+    color = "Sex"
+  )
+```
+Activity is lowest overnight (between minutes 0 to 500) for all three groups. For all three groups activity rises until midday then decreases into the evening. Men and women appear to follow the same trends.
+## Problem 3
